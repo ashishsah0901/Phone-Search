@@ -1,34 +1,47 @@
 package com.ashish.phonesearch
 
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ashish.phonesearch.ui.theme.PhoneSearchTheme
+import android.Manifest
 
 class MainActivity : ComponentActivity() {
+    private val permissionsToRequest = arrayOf(
+        Manifest.permission.READ_EXTERNAL_STORAGE,
+        Manifest.permission.READ_CONTACTS,
+        Manifest.permission.READ_SMS,
+        Manifest.permission.READ_CALL_LOG,
+        Manifest.permission.READ_CALENDAR,
+    )
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             PhoneSearchTheme {
-                // A surface container using the 'background' color from the theme
+                val permissionViewModel = viewModel<PermissionViewModel>()
+                val multiplePermissionResultLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestMultiplePermissions(),
+                    onResult = { perms ->
+                        permissionsToRequest.forEach { permission ->
+                            permissionViewModel.onPermissionResult(
+                                permission = permission,
+                                isGranted = perms[permission] == true
+                            )
+                        }
+                    }
+                )
+
+                LaunchedEffect(key1 = true) {
+                    multiplePermissionResultLauncher.launch(permissionsToRequest)
+                }
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
