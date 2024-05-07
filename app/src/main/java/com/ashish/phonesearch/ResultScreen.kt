@@ -2,7 +2,7 @@ package com.ashish.phonesearch
 
 import android.content.ContentUris
 import android.content.Context
-import android.os.Build
+import android.provider.CallLog
 import android.provider.MediaStore
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,22 +19,79 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+
 @Composable
 fun ResultScreen(searchText: String) {
     var isSearching by remember {
         mutableStateOf(true)
     }
     var resultItems by remember {
-        mutableStateOf<List<String>>(emptyList())
+        mutableStateOf<List<SearchResultItem>>(emptyList())
     }
     val context = LocalContext.current
     LaunchedEffect(key1 = searchText) {
         // Read Internal Storage
         withContext(Dispatchers.IO) {
-            val internalStorageResult = loadFilesFromInternalStorage(context, searchText)
+            val internalStorageFilesResult = loadFilesFromInternalStorage(context, searchText).map {
+                SearchResultItem(
+                    storageType = StorageType.INTERNAL,
+                    itemType = SearchResultType.FILE,
+                    path = it
+                )
+            }
+            val externalStorageFilesResult = loadFilesFromExternalStorage(context, searchText).map {
+                SearchResultItem(
+                    storageType = StorageType.EXTERNAL,
+                    itemType = SearchResultType.FILE,
+                    path = it
+                )
+            }
+            val externalStorageDownloadResult = loadDownloadedFromExternalStorage(context, searchText).map {
+                SearchResultItem(
+                    storageType = StorageType.EXTERNAL,
+                    itemType = SearchResultType.FILE,
+                    path = it
+                )
+            }
+            val externalStorageVideoResult = loadVideoFromExternalStorage(context, searchText).map {
+                SearchResultItem(
+                    storageType = StorageType.EXTERNAL,
+                    itemType = SearchResultType.VIDEO,
+                    path = it
+                )
+            }
+            val externalStorageAudioResult = loadAudioFromExternalStorage(context, searchText).map {
+                SearchResultItem(
+                    storageType = StorageType.EXTERNAL,
+                    itemType = SearchResultType.AUDIO,
+                    path = it
+                )
+            }
+            val externalStoragePhotosResult = loadPhotosFromExternalStorage(context, searchText).map {
+                SearchResultItem(
+                    storageType = StorageType.EXTERNAL,
+                    itemType = SearchResultType.PHOTO,
+                    path = it
+                )
+            }
+            val callLogResult = loadCallLogs(context, searchText).map {
+                SearchResultItem(
+                    storageType = StorageType.EXTERNAL,
+                    itemType = SearchResultType.CALL_LOG,
+                    path = it
+                )
+            }
             withContext(Dispatchers.Main) {
                 isSearching = false
-                resultItems = listOf("Abc", "CDE")
+                resultItems = mutableListOf<SearchResultItem>().apply {
+                    addAll(internalStorageFilesResult)
+                    addAll(externalStorageAudioResult)
+                    addAll(externalStorageDownloadResult)
+                    addAll(externalStorageFilesResult)
+                    addAll(externalStoragePhotosResult)
+                    addAll(externalStorageVideoResult)
+                    addAll(callLogResult)
+                }
             }
         }
     }
@@ -44,7 +101,7 @@ fun ResultScreen(searchText: String) {
         } else {
             LazyColumn {
                 items(resultItems) {
-                    Text(text = it)
+                    Text(text = it.path)
                 }
             }
         }
@@ -62,9 +119,7 @@ private suspend fun loadFilesFromInternalStorage(context: Context, searchText: S
 
 private suspend fun loadAudioFromExternalStorage(context: Context, searchText: String): List<String> {
     return withContext(Dispatchers.IO) {
-        val collection = sdk29AndUp {
-            MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        } ?: MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
 
         val projection = arrayOf(
             MediaStore.Images.Media._ID
@@ -102,28 +157,25 @@ private suspend fun loadAudioFromExternalStorage(context: Context, searchText: S
 
 private suspend fun loadDownloadedFromExternalStorage(context: Context, searchText: String): List<String> {
     return withContext(Dispatchers.IO) {
-        val collection = sdk29AndUp {
-            MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        } ?: MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL)
 
         val projection = arrayOf(
-            MediaStore.Images.Media._ID
+            MediaStore.Downloads._ID
         )
         val photos = mutableListOf<String>()
         context.contentResolver.query(
             collection,
             projection,
-            MediaStore.Images.Media.DISPLAY_NAME + "=? or " +
-                    MediaStore.Images.Media.ALBUM + "=? or " +
-                    MediaStore.Images.Media.ALBUM_ARTIST + "=? or " +
-                    MediaStore.Images.Media.ARTIST + "=? or " +
-                    MediaStore.Images.Media.AUTHOR + "=? or " +
-                    MediaStore.Images.Media.DESCRIPTION + "=? or " +
-                    MediaStore.Images.Media.GENRE + "=? or " +
-                    MediaStore.Images.Media.TITLE + "=? or " +
-                    MediaStore.Images.Media.VOLUME_NAME + "=? or " +
-                    MediaStore.Images.Media.RELATIVE_PATH + "=? or ",
-            arrayOf(searchText, searchText, searchText, searchText, searchText, searchText, searchText, searchText, searchText, searchText),
+            MediaStore.Downloads.DISPLAY_NAME + "=? or " +
+                    MediaStore.Downloads.ALBUM + "=? or " +
+                    MediaStore.Downloads.ALBUM_ARTIST + "=? or " +
+                    MediaStore.Downloads.ARTIST + "=? or " +
+                    MediaStore.Downloads.AUTHOR + "=? or " +
+                    MediaStore.Downloads.GENRE + "=? or " +
+                    MediaStore.Downloads.TITLE + "=? or " +
+                    MediaStore.Downloads.VOLUME_NAME + "=? or " +
+                    MediaStore.Downloads.RELATIVE_PATH + "=? or ",
+            arrayOf(searchText, searchText, searchText, searchText, searchText, searchText, searchText, searchText, searchText),
             null
         )?.use { cursor ->
             val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
@@ -142,28 +194,25 @@ private suspend fun loadDownloadedFromExternalStorage(context: Context, searchTe
 
 private suspend fun loadFilesFromExternalStorage(context: Context, searchText: String): List<String> {
     return withContext(Dispatchers.IO) {
-        val collection = sdk29AndUp {
-            MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        } ?: MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val collection = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
 
         val projection = arrayOf(
-            MediaStore.Images.Media._ID
+            MediaStore.Files.FileColumns._ID
         )
         val photos = mutableListOf<String>()
         context.contentResolver.query(
             collection,
             projection,
-            MediaStore.Images.Media.DISPLAY_NAME + "=? or " +
-                    MediaStore.Images.Media.ALBUM + "=? or " +
-                    MediaStore.Images.Media.ALBUM_ARTIST + "=? or " +
-                    MediaStore.Images.Media.ARTIST + "=? or " +
-                    MediaStore.Images.Media.AUTHOR + "=? or " +
-                    MediaStore.Images.Media.DESCRIPTION + "=? or " +
-                    MediaStore.Images.Media.GENRE + "=? or " +
-                    MediaStore.Images.Media.TITLE + "=? or " +
-                    MediaStore.Images.Media.VOLUME_NAME + "=? or " +
-                    MediaStore.Images.Media.RELATIVE_PATH + "=? or ",
-            arrayOf(searchText, searchText, searchText, searchText, searchText, searchText, searchText, searchText, searchText, searchText),
+            MediaStore.Files.FileColumns.DISPLAY_NAME + "=? or " +
+                    MediaStore.Files.FileColumns.ALBUM + "=? or " +
+                    MediaStore.Files.FileColumns.ALBUM_ARTIST + "=? or " +
+                    MediaStore.Files.FileColumns.ARTIST + "=? or " +
+                    MediaStore.Files.FileColumns.AUTHOR + "=? or " +
+                    MediaStore.Files.FileColumns.GENRE + "=? or " +
+                    MediaStore.Files.FileColumns.TITLE + "=? or " +
+                    MediaStore.Files.FileColumns.VOLUME_NAME + "=? or " +
+                    MediaStore.Files.FileColumns.RELATIVE_PATH + "=? or ",
+            arrayOf(searchText, searchText, searchText, searchText, searchText, searchText, searchText, searchText, searchText),
             null
         )?.use { cursor ->
             val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
@@ -182,9 +231,7 @@ private suspend fun loadFilesFromExternalStorage(context: Context, searchText: S
 
 private suspend fun loadVideoFromExternalStorage(context: Context, searchText: String): List<String> {
     return withContext(Dispatchers.IO) {
-        val collection = sdk29AndUp {
-            MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        } ?: MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val collection = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
 
         val projection = arrayOf(
             MediaStore.Video.Media._ID
@@ -222,9 +269,7 @@ private suspend fun loadVideoFromExternalStorage(context: Context, searchText: S
 
 private suspend fun loadPhotosFromExternalStorage(context: Context, searchText: String): List<String> {
     return withContext(Dispatchers.IO) {
-        val collection = sdk29AndUp {
-            MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        } ?: MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
 
         val projection = arrayOf(
             MediaStore.Images.Media._ID
@@ -260,8 +305,23 @@ private suspend fun loadPhotosFromExternalStorage(context: Context, searchText: 
     }
 }
 
-inline fun <T> sdk29AndUp(onSdk29: () -> T): T? {
-    return if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        onSdk29()
-    } else null
+private suspend fun loadCallLogs(context: Context, searchText: String) : List<String> {
+    return withContext(Dispatchers.IO) {
+        val logs: MutableList<String> = ArrayList()
+
+        context.contentResolver.query(
+            CallLog.Calls.CONTENT_URI, null,
+            CallLog.Calls.CACHED_NAME + "=? or " +
+            CallLog.Calls.NUMBER + "=? or " +
+            arrayOf(searchText, searchText),
+            null, null)
+        ?.use { cursor ->
+            val number = cursor.getColumnIndex(CallLog.Calls.NUMBER)
+            val log = cursor.getString(number)
+            if (log != null) {
+                logs.add(log)
+            }
+        }
+        logs
+    }
 }
