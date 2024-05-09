@@ -8,5 +8,6 @@ enum class SearchResultType {
     MESSAGE,
     CALL_LOG,
     CONTACTS,
-    AUDIO
+    AUDIO,
+    CALENDER
 }
